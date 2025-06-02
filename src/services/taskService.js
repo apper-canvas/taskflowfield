@@ -72,12 +72,12 @@ class TaskService {
     }
   }
 
-  async createTask(taskData) {
+async createTask(taskData) {
     try {
       // Filter to only include updateable fields and format data
       const filteredData = {}
       this.updateableFields.forEach(field => {
-        if (taskData[field] !== undefined) {
+        if (taskData[field] !== undefined && taskData[field] !== null && taskData[field] !== '') {
           // Handle data type formatting based on field types
           if (field === 'Tags' && Array.isArray(taskData[field])) {
             filteredData[field] = taskData[field].join(',')
@@ -87,6 +87,12 @@ class TaskService {
           } else if (field === 'priority' || field === 'status') {
             // Picklist fields - ensure valid values
             filteredData[field] = taskData[field]
+          } else if (field === 'project_id' || field === 'Owner') {
+            // Lookup fields - must be integers
+            const numValue = parseInt(taskData[field], 10)
+            if (!isNaN(numValue)) {
+              filteredData[field] = numValue
+            }
           } else {
             filteredData[field] = taskData[field]
           }
@@ -124,12 +130,12 @@ class TaskService {
     }
   }
 
-  async updateTask(taskId, taskData) {
+async updateTask(taskId, taskData) {
     try {
       // Filter to only include updateable fields and format data
       const filteredData = { Id: taskId }
       this.updateableFields.forEach(field => {
-        if (taskData[field] !== undefined) {
+        if (taskData[field] !== undefined && taskData[field] !== null && taskData[field] !== '') {
           // Handle data type formatting based on field types
           if (field === 'Tags' && Array.isArray(taskData[field])) {
             filteredData[field] = taskData[field].join(',')
@@ -139,6 +145,12 @@ class TaskService {
           } else if (field === 'priority' || field === 'status') {
             // Picklist fields - ensure valid values
             filteredData[field] = taskData[field]
+          } else if (field === 'project_id' || field === 'Owner') {
+            // Lookup fields - must be integers
+            const numValue = parseInt(taskData[field], 10)
+            if (!isNaN(numValue)) {
+              filteredData[field] = numValue
+            }
           } else {
             filteredData[field] = taskData[field]
           }
