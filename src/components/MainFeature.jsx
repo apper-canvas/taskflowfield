@@ -3,31 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'react-toastify'
 import { format, isToday, isTomorrow, isPast } from 'date-fns'
 import ApperIcon from './ApperIcon'
-
+import taskService from '../services/taskService'
 function MainFeature() {
-  const [tasks, setTasks] = useState([
-    {
-      id: '1',
-      title: 'Design new landing page',
-      description: 'Create a modern and responsive landing page for the product launch',
-      priority: 'high',
-      status: 'in-progress',
-      dueDate: new Date().toISOString().split('T')[0],
-      projectId: '1',
-      tags: ['design', 'ui/ux']
-    },
-    {
-      id: '2',
-      title: 'Review pull requests',
-      description: 'Review and merge pending pull requests from team members',
-      priority: 'medium',
-      status: 'todo',
-      dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-      projectId: '1',
-      tags: ['development', 'review']
-    }
-  ])
-
+  const [tasks, setTasks] = useState([])
   const [projects, setProjects] = useState([
     { id: '1', name: 'Website Redesign', color: '#6366f1', taskCount: 8, completedCount: 3 },
     { id: '2', name: 'Mobile App', color: '#10b981', taskCount: 12, completedCount: 7 },
@@ -37,6 +15,8 @@ function MainFeature() {
   const [activeProject, setActiveProject] = useState('all')
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [taskFormData, setTaskFormData] = useState({
     title: '',
     description: '',
@@ -55,16 +35,51 @@ function MainFeature() {
 
   const [view, setView] = useState('list') // list, board, calendar
 
+// Load tasks on component mount
+  useEffect(() => {
+    loadTasks()
+  }, [])
+
+  // Update stats when tasks change
   useEffect(() => {
     updateStats()
   }, [tasks])
+
+  const loadTasks = async () => {
+    try {
+      setInitialLoading(true)
+      const fetchedTasks = await taskService.fetchTasks()
+      
+      // Transform backend data to match UI format
+      const transformedTasks = fetchedTasks.map(task => ({
+        id: task.Id?.toString() || '',
+        title: task.title || task.Name || '',
+        description: task.description || '',
+        priority: task.priority || 'medium',
+        status: task.status || 'todo',
+        dueDate: task.due_date || '',
+        projectId: task.project_id || '1',
+        tags: task.Tags ? task.Tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+        createdAt: task.CreatedOn || new Date().toISOString(),
+        updatedAt: task.ModifiedOn || new Date().toISOString()
+      }))
+      
+      setTasks(transformedTasks)
+    } catch (error) {
+      console.error('Error loading tasks:', error)
+      toast.error('Failed to load tasks. Please try again.')
+      setTasks([])
+    } finally {
+      setInitialLoading(false)
+    }
+  }
 
   const updateStats = () => {
     const total = tasks.length
     const completed = tasks.filter(task => task.status === 'completed').length
     const inProgress = tasks.filter(task => task.status === 'in-progress').length
     const overdue = tasks.filter(task => 
-      task.status !== 'completed' && isPast(new Date(task.dueDate))
+      task.status !== 'completed' && task.dueDate && isPast(new Date(task.dueDate))
     ).length
 
     setStats({ total, completed, inProgress, overdue })
@@ -74,80 +89,178 @@ function MainFeature() {
     ? tasks 
     : tasks.filter(task => task.projectId === activeProject)
 
-  const handleCreateTask = (e) => {
+const handleCreateTask = async (e) => {
     e.preventDefault()
     if (!taskFormData.title.trim()) {
       toast.error('Task title is required')
       return
     }
 
-    const newTask = {
-      id: Date.now().toString(),
-      ...taskFormData,
-      status: 'todo',
-      tags: taskFormData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
+    setLoading(true)
+    try {
+      // Transform UI data to backend format
+      const taskData = {
+        Name: taskFormData.title,
+        title: taskFormData.title,
+        description: taskFormData.description,
+        priority: taskFormData.priority,
+        status: 'todo',
+        due_date: taskFormData.dueDate || null,
+        project_id: taskFormData.projectId,
+        Tags: taskFormData.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+      }
 
-    setTasks(prev => [...prev, newTask])
-    setTaskFormData({
-      title: '',
-      description: '',
-      priority: 'medium',
-      dueDate: '',
-      projectId: '1',
-      tags: ''
-    })
-    setShowTaskForm(false)
-    toast.success('Task created successfully!')
+      const createdTask = await taskService.createTask(taskData)
+      
+      if (createdTask) {
+        // Transform backend response to UI format
+        const newTask = {
+          id: createdTask.Id?.toString() || '',
+          title: createdTask.title || createdTask.Name || '',
+          description: createdTask.description || '',
+          priority: createdTask.priority || 'medium',
+          status: createdTask.status || 'todo',
+          dueDate: createdTask.due_date || '',
+          projectId: createdTask.project_id || '1',
+          tags: createdTask.Tags ? createdTask.Tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+          createdAt: createdTask.CreatedOn || new Date().toISOString(),
+          updatedAt: createdTask.ModifiedOn || new Date().toISOString()
+        }
+
+        setTasks(prev => [newTask, ...prev])
+        setTaskFormData({
+          title: '',
+          description: '',
+          priority: 'medium',
+          dueDate: '',
+          projectId: '1',
+          tags: ''
+        })
+        setShowTaskForm(false)
+        toast.success('Task created successfully!')
+      }
+    } catch (error) {
+      console.error('Error creating task:', error)
+      toast.error('Failed to create task. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleUpdateTask = (e) => {
+const handleUpdateTask = async (e) => {
     e.preventDefault()
     if (!taskFormData.title.trim()) {
       toast.error('Task title is required')
       return
     }
 
-    setTasks(prev => prev.map(task => 
-      task.id === editingTask.id 
-        ? {
-            ...task,
-            ...taskFormData,
-            tags: taskFormData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-            updatedAt: new Date().toISOString()
-          }
-        : task
-    ))
-    setEditingTask(null)
-    setTaskFormData({
-      title: '',
-      description: '',
-      priority: 'medium',
-      dueDate: '',
-      projectId: '1',
-      tags: ''
-    })
-    setShowTaskForm(false)
-    toast.success('Task updated successfully!')
+    setLoading(true)
+    try {
+      // Transform UI data to backend format
+      const taskData = {
+        Name: taskFormData.title,
+        title: taskFormData.title,
+        description: taskFormData.description,
+        priority: taskFormData.priority,
+        status: editingTask.status, // Keep existing status
+        due_date: taskFormData.dueDate || null,
+        project_id: taskFormData.projectId,
+        Tags: taskFormData.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+      }
+
+      const updatedTask = await taskService.updateTask(editingTask.id, taskData)
+      
+      if (updatedTask) {
+        // Transform backend response to UI format and update local state
+        const transformedTask = {
+          id: updatedTask.Id?.toString() || editingTask.id,
+          title: updatedTask.title || updatedTask.Name || '',
+          description: updatedTask.description || '',
+          priority: updatedTask.priority || 'medium',
+          status: updatedTask.status || editingTask.status,
+          dueDate: updatedTask.due_date || '',
+          projectId: updatedTask.project_id || '1',
+          tags: updatedTask.Tags ? updatedTask.Tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+          createdAt: editingTask.createdAt,
+          updatedAt: updatedTask.ModifiedOn || new Date().toISOString()
+        }
+
+        setTasks(prev => prev.map(task => 
+          task.id === editingTask.id ? transformedTask : task
+        ))
+        
+        setEditingTask(null)
+        setTaskFormData({
+          title: '',
+          description: '',
+          priority: 'medium',
+          dueDate: '',
+          projectId: '1',
+          tags: ''
+        })
+        setShowTaskForm(false)
+        toast.success('Task updated successfully!')
+      }
+    } catch (error) {
+      console.error('Error updating task:', error)
+      toast.error('Failed to update task. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleDeleteTask = (taskId) => {
-    setTasks(prev => prev.filter(task => task.id !== taskId))
-    toast.success('Task deleted successfully!')
+const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      const success = await taskService.deleteTask(taskId)
+      
+      if (success) {
+        setTasks(prev => prev.filter(task => task.id !== taskId))
+        toast.success('Task deleted successfully!')
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error)
+      toast.error('Failed to delete task. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleToggleStatus = (taskId) => {
-    setTasks(prev => prev.map(task => 
-      task.id === taskId 
-        ? {
-            ...task,
-            status: task.status === 'completed' ? 'todo' : 'completed',
-            updatedAt: new Date().toISOString()
-          }
-        : task
-    ))
+const handleToggleStatus = async (taskId) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+
+    setLoading(true)
+    try {
+      const newStatus = task.status === 'completed' ? 'todo' : 'completed'
+      const taskData = {
+        status: newStatus
+      }
+
+      const updatedTask = await taskService.updateTask(taskId, taskData)
+      
+      if (updatedTask) {
+        setTasks(prev => prev.map(t => 
+          t.id === taskId 
+            ? {
+                ...t,
+                status: newStatus,
+                updatedAt: new Date().toISOString()
+              }
+            : t
+        ))
+        toast.success(`Task marked as ${newStatus}`)
+      }
+    } catch (error) {
+      console.error('Error updating task status:', error)
+      toast.error('Failed to update task status. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleEditTask = (task) => {
@@ -474,12 +587,20 @@ function MainFeature() {
                       />
                     </div>
 
-                    <div className="flex space-x-3 pt-4">
+<div className="flex space-x-3 pt-4">
                       <button
                         type="submit"
-                        className="flex-1 btn-primary"
+                        disabled={loading}
+                        className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {editingTask ? 'Update Task' : 'Create Task'}
+                        {loading ? (
+                          <div className="flex items-center justify-center">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                            {editingTask ? 'Updating...' : 'Creating...'}
+                          </div>
+                        ) : (
+                          editingTask ? 'Update Task' : 'Create Task'
+                        )}
                       </button>
                       <button
                         type="button"
@@ -499,9 +620,17 @@ function MainFeature() {
           )}
         </AnimatePresence>
 
-        {/* Tasks List */}
+{/* Tasks List */}
         <div className="space-y-4">
-          <AnimatePresence>
+          {initialLoading ? (
+            <div className="task-card p-8 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <p className="text-surface-600 dark:text-surface-400">Loading tasks...</p>
+            </div>
+          ) : (
+            <AnimatePresence>
             {filteredTasks.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -624,7 +753,8 @@ function MainFeature() {
                 </motion.div>
               ))
             )}
-          </AnimatePresence>
+</AnimatePresence>
+          )}
         </div>
       </motion.main>
     </div>
