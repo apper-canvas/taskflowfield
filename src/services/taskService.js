@@ -139,7 +139,7 @@ if (failedRecords.length > 0) {
 async updateTask(taskId, taskData) {
     try {
       // Filter to only include updateable fields and format data
-      const filteredData = { Id: taskId }
+      const filteredData = { Id: parseInt(taskId, 10) }
       this.updateableFields.forEach(field => {
         if (taskData[field] !== undefined && taskData[field] !== null && taskData[field] !== '') {
           // Handle data type formatting based on field types
@@ -192,10 +192,10 @@ if (failedUpdates.length > 0) {
     }
   }
 
-  async deleteTask(taskId) {
+async deleteTask(taskId) {
     try {
       const params = {
-        RecordIds: [taskId]
+        RecordIds: [parseInt(taskId, 10)]
       }
 
       const response = await this.client.deleteRecord(this.tableName, params)
@@ -223,10 +223,10 @@ if (failedDeletions.length > 0) {
     }
   }
 
-  async deleteTasks(taskIds) {
+async deleteTasks(taskIds) {
     try {
       const params = {
-        RecordIds: taskIds
+        RecordIds: taskIds.map(id => parseInt(id, 10))
       }
 
       const response = await this.client.deleteRecord(this.tableName, params)
@@ -254,7 +254,7 @@ if (failedDeletions.length > 0) {
     }
 };
 
-  async getTasksByProject(projectId) {
+async getTasksByProject(projectId) {
     try {
       const params = {
         fields: this.fields,
@@ -262,7 +262,7 @@ if (failedDeletions.length > 0) {
           {
             fieldName: 'project_id',
             operator: 'ExactMatch',
-            values: [projectId]
+            values: [parseInt(projectId, 10)]
           }
         ],
         orderBy: [
