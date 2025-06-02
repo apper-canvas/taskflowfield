@@ -617,7 +617,7 @@ function MainFeature() {
                           >
                             <ApperIcon name="Trash2" className="w-4 h-4 text-red-500" />
                           </button>
-                        </div>
+</div>
                       </div>
                     </div>
                   </div>
