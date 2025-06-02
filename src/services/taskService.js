@@ -109,15 +109,21 @@ async createTask(taskData) {
         const successfulRecords = response.results.filter(result => result.success)
         const failedRecords = response.results.filter(result => !result.success)
 
-        if (failedRecords.length > 0) {
+if (failedRecords.length > 0) {
           console.warn('Failed to create some tasks:', failedRecords)
           failedRecords.forEach(record => {
-            if (record.errors) {
+            if (record?.errors) {
               record.errors.forEach(error => {
-                console.error(`Field: ${error.fieldLabel}, Error: ${error.message}`)
+                const fieldLabel = error?.fieldLabel || 'Unknown field'
+                const errorMessage = error?.message || 'Unknown error'
+                console.error(`Field: ${fieldLabel}, Error: ${errorMessage}`)
               })
+            } else {
+              const errorMessage = record?.message || 'Task creation failed'
+              console.error(`Error: ${errorMessage}`)
             }
           })
+          throw new Error(`Task creation failed: ${failedRecords.length} operations failed`)
         }
 
         return successfulRecords.length > 0 ? successfulRecords[0].data : null
@@ -167,11 +173,13 @@ async updateTask(taskId, taskData) {
         const successfulUpdates = response.results.filter(result => result.success)
         const failedUpdates = response.results.filter(result => !result.success)
 
-        if (failedUpdates.length > 0) {
+if (failedUpdates.length > 0) {
           console.warn('Failed to update some tasks:', failedUpdates)
           failedUpdates.forEach(record => {
-            console.error(`Error: ${record.message || 'Task update failed'}`)
+            const errorMessage = record?.message || 'Task update failed'
+            console.error(`Error: ${errorMessage}`)
           })
+          throw new Error(`Task update failed: ${failedUpdates.length} operations failed`)
         }
 
         return successfulUpdates.length > 0 ? successfulUpdates[0].data : null
@@ -196,11 +204,13 @@ async updateTask(taskId, taskData) {
         const successfulDeletions = response.results.filter(result => result.success)
         const failedDeletions = response.results.filter(result => !result.success)
 
-        if (failedDeletions.length > 0) {
+if (failedDeletions.length > 0) {
           console.warn('Failed to delete some tasks:', failedDeletions)
           failedDeletions.forEach(record => {
-            console.error(`Error: ${record.message || 'Task deletion failed'}`)
+            const errorMessage = record?.message || 'Task deletion failed'
+            console.error(`Error: ${errorMessage}`)
           })
+          throw new Error(`Task deletion failed: ${failedDeletions.length} operations failed`)
         }
 
         return successfulDeletions.length > 0
@@ -225,8 +235,13 @@ async updateTask(taskId, taskData) {
         const successfulDeletions = response.results.filter(result => result.success)
         const failedDeletions = response.results.filter(result => !result.success)
 
-        if (failedDeletions.length > 0) {
+if (failedDeletions.length > 0) {
           console.warn(`Failed to delete ${failedDeletions.length} tasks`)
+          failedDeletions.forEach(record => {
+            const errorMessage = record?.message || 'Task deletion failed'
+            console.error(`Error: ${errorMessage}`)
+          })
+          throw new Error(`Bulk task deletion failed: ${failedDeletions.length} operations failed`)
         }
 
         return successfulDeletions.length
@@ -237,7 +252,7 @@ async updateTask(taskId, taskData) {
       console.error('Error deleting tasks:', error)
       throw error
     }
-  }
+};
 
   async getTasksByProject(projectId) {
     try {
